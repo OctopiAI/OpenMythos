@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements-serve.txt
 
 # Install the library + flash-attn (requires CUDA devel headers — hence the devel base image)
 COPY pyproject.toml .
+COPY README.md .
 COPY open_mythos/ open_mythos/
 RUN pip install --no-cache-dir -e ".[flash]"
 
