@@ -19,9 +19,9 @@ RUN pip install --no-cache-dir numpy
 # torch first — flash-attn's setup.py imports torch at build time
 RUN pip install --no-cache-dir torch==2.11.0
 
-# Install the library + flash-attn (requires CUDA devel headers — hence the devel base image)
-# Set FLASH_ATTN=0 to skip flash-attn (e.g. local CPU builds)
-ARG FLASH_ATTN=1
+# flash-attn has no prebuilt wheel for cu13+torch2.11; source compilation takes 20-30 min
+# and OOMs the T4 during Docker build. Disabled until a prebuilt wheel is available.
+ARG FLASH_ATTN=0
 COPY pyproject.toml .
 COPY README.md .
 COPY open_mythos/ open_mythos/
