@@ -1,25 +1,26 @@
-FROM nvidia/cuda:12.6.0-cudnn-devel-ubuntu22.04
+FROM nvidia/cuda:13.0.0-cudnn-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# ninja-build is required for flash-attn source compilation (no prebuilt wheel exists for cu13+torch2.11)
+# Without ninja, torch falls back to distutils which is ~10x slower and will time out
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 python3.11-dev python3-pip build-essential curl \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
-    && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 \
+    python3 python3-pip python3-dev build-essential curl ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install service deps
 COPY requirements-serve.txt .
 RUN pip install --no-cache-dir -r requirements-serve.txt
 
-# Install torch first — flash-attn's setup.py imports torch at build time
-# so torch must exist before pip tries to collect flash-attn metadata
+# numpy must exist before torch/flash-attn or torch logs a NumPy init warning
+RUN pip install --no-cache-dir numpy
+
+# torch first — flash-attn's setup.py imports torch at build time
 RUN pip install --no-cache-dir torch==2.11.0
 
 # Install the library + flash-attn (requires CUDA devel headers — hence the devel base image)
-# Set FLASH_ATTN=0 to skip flash-attn (e.g. local CPU builds with no CUDA)
+# Set FLASH_ATTN=0 to skip flash-attn (e.g. local CPU builds)
 ARG FLASH_ATTN=1
 COPY pyproject.toml .
 COPY README.md .
@@ -30,8 +31,7 @@ RUN if [ "$FLASH_ATTN" = "1" ]; then \
         pip install --no-cache-dir -e "."; \
     fi
 
-# HuggingFace cache — persisted via a named volume so the tokenizer
-# is only downloaded on first boot, not on every container restart.
+# HuggingFace cache persisted via named volume — tokenizer downloaded once, not on every restart
 ENV HF_HOME=/app/.cache/huggingface
 
 COPY serve.py .
