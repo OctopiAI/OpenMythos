@@ -14,11 +14,21 @@ WORKDIR /app
 COPY requirements-serve.txt .
 RUN pip install --no-cache-dir -r requirements-serve.txt
 
+# Install torch first — flash-attn's setup.py imports torch at build time
+# so torch must exist before pip tries to collect flash-attn metadata
+RUN pip install --no-cache-dir torch==2.11.0
+
 # Install the library + flash-attn (requires CUDA devel headers — hence the devel base image)
+# Set FLASH_ATTN=0 to skip flash-attn (e.g. local CPU builds with no CUDA)
+ARG FLASH_ATTN=1
 COPY pyproject.toml .
 COPY README.md .
 COPY open_mythos/ open_mythos/
-RUN pip install --no-cache-dir -e ".[flash]"
+RUN if [ "$FLASH_ATTN" = "1" ]; then \
+        pip install --no-cache-dir -e ".[flash]"; \
+    else \
+        pip install --no-cache-dir -e "."; \
+    fi
 
 # HuggingFace cache — persisted via a named volume so the tokenizer
 # is only downloaded on first boot, not on every container restart.
