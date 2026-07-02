@@ -1,0 +1,45 @@
+# Local dev: docker compose up --build
+# Coolify: set build pack to "Docker Compose".
+# Coolify reads the `environment` keys below and auto-creates input fields in the UI.
+services:
+  api:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      # Auth
+      API_KEY: ${API_KEY}
+      # HuggingFace — needed if tokenizer model is gated; read-only token is enough
+      HF_TOKEN: ${HF_TOKEN}
+      # Runtime device: "cpu" or "cuda"
+      DEVICE: ${DEVICE:-cpu}
+      # Path inside the container to a .pt checkpoint file (leave empty for random weights)
+      CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
+      # Model architecture — only change if you trained a custom config
+      VOCAB_SIZE: ${VOCAB_SIZE:-200000}
+      DIM: ${DIM:-256}
+      N_HEADS: ${N_HEADS:-8}
+      MAX_SEQ_LEN: ${MAX_SEQ_LEN:-512}
+      MAX_LOOP_ITERS: ${MAX_LOOP_ITERS:-4}
+      ATTN_TYPE: ${ATTN_TYPE:-mla}
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - checkpoints:/app/checkpoints
+      - hf_cache:/app/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  checkpoints:
+  hf_cache:
